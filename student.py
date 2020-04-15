@@ -29,7 +29,33 @@ def compute_photometric_stereo_impl(lights, images):
         normals -- float32 height x width x 3 image with dimensions matching
                    the input images.
     """
-    raise NotImplementedError()
+    # Save dimensions
+    rgb = len(images[0].shape) == 3
+    if rgb:
+        height, width, depth = images[0].shape  # RGB
+    else:
+        height, width = images[0].shape  # Grayscale
+        depth = 1
+
+    # Flatten pixels
+    I = np.array([image.flatten() for image in images])  # (NxP)
+    L = np.array(lights)  # (Nx3)
+
+    # Calculate G from least squares
+    G = np.linalg.inv(L.T @ L) @ (L.T @ I)  # (3xP)
+
+    # Calculate albedo and norms
+    albedo = np.linalg.norm(G, axis=0)  # (1xP)
+    normals = G / albedo  # (3xP)
+
+    # Unflatten pixels
+    albedo = albedo.reshape((height, width, depth))
+    if rgb:
+        normals = normals.reshape((height, width, depth, 3))
+    else:
+        normals = normals.reshape((height, width, 3))
+
+    return albedo, normals
 
 
 def project_impl(K, Rt, points):
