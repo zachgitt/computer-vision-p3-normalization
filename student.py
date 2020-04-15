@@ -51,7 +51,7 @@ def compute_photometric_stereo_impl(lights, images):
     # Unflatten pixels
     albedo = albedo.reshape((height, width, depth))
     if rgb:
-        normals = normals.reshape((height, width, depth, 3))
+        normals = normals.reshape((height, width, depth, 3))  # TODO: removing depth gives error, but without depth dimensional error given
     else:
         normals = normals.reshape((height, width, 3))
 
