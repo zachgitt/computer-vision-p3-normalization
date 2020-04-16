@@ -34,35 +34,20 @@ def compute_photometric_stereo_impl(lights, images):
     if rgb:
             # Save variables
             height, width, depth = images[0].shape  # RGB
-            albedos_rgb = np.zeros((height, width, depth))
-            normals_xyz = np.zeros((height, width, 3))
+            G = np.zeros((height, width, depth, 3))
 
-            normal = np.zeros((3, height*width))
-
+            # Calculate G from least squares
             for color in range(depth):
-
-                # Calculate G from least squares
                 I = np.array([image[:,:,color].flatten() for image in images])  # (NxP)
                 L = np.array(lights)  # (Nx3)
-                G = np.linalg.inv(L.T @ L) @ (L.T @ I)  # (3xP)
+                G[:,:,color,:] = (np.linalg.inv(L.T @ L) @ (L.T @ I)).T.reshape((height, width, 3))
 
-                # Calculate albedo and norms
-                albedo = np.linalg.norm(G, axis=0)  # (1xP)
-                albedo[np.abs(albedo) < 1e-7] = 0
-                normal += np.divide(G, albedo, out=np.zeros_like(G), where=albedo != 0)   # (3xP) 
+            # Calculate albedo and normals
+            albedo = np.linalg.norm(G, axis=3)  # (HxWxD)
+            normals = np.divide(np.mean(G, axis=2), albedo, out=np.zeros_like(albedo), where=albedo != 0)  # (HxWx3)
+            normals /= np.linalg.norm(normals, axis=2)[:,:,np.newaxis]  # (HxWx3)
 
-
-                # Append rgb channels
-                #normals_xyz += normal.reshape((height, width, 3))
-                albedos_rgb[:,:,color] = albedo.reshape((height, width))
-
-            # TODO: divide by the normal
-            #denom = np.linalg.norm(normals_xyz, axis=2).reshape((height, width, 1))
-            #normals_xyz = np.divide(normals_xyz, denom, out=np.zeros_like(normals_xyz), where=denom != 0)
-            normal /= np.linalg.norm(normal, axis=0)
-
-            # TODO: normal output is 9 times larger
-            return albedos_rgb, normal.reshape((height, width, 3))
+            return albedo, normals
 
     # Grayscale
     else:
