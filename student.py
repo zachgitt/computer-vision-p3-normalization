@@ -35,10 +35,7 @@ def compute_photometric_stereo_impl(lights, images):
             # Save variables
             height, width, depth = images[0].shape  # RGB
             albedos_rgb = np.zeros((height, width, depth))
-            normals_rgb = np.zeros((height, width, 3, depth))
-
-            # Save images
-            I = np.zeros((height, width, depth))
+            normals_xyz = np.zeros((height, width, 3))
 
             for color in range(depth):
 
@@ -53,18 +50,16 @@ def compute_photometric_stereo_impl(lights, images):
                 normal = np.divide(G, albedo, out=np.zeros_like(G), where=albedo != 0)   # (3xP) 
 
                 # Append rgb channels
-                normals_rgb[:,:,:,color] = normal.reshape((height, width, 3))
+                normals_xyz += normal.reshape((height, width, 3))
+                #normals_rgb[:,:,:,color] = normal.reshape((height, width, 3))
                 albedos_rgb[:,:,color] = albedo.reshape((height, width))
 
-                # normals_rgb = np.stack((normals_rgb, normal.reshape((height, width, 3))), axis=3) if len(normals_rgb) else normal.reshape((height, width, 3))
-                # albedos_rgb = np.stack((albedos_rgb, albedo.reshape((height, width))), axis=2) if len(albedos_rgb) else albedo.reshape((height, width))
+            # TODO: divide by the normal
+            denom = np.linalg.norm(normals_xyz, axis=2).reshape((height, width, 1))
+            normals_xyz = np.divide(normals_xyz, denom, out=np.zeros_like(normals_xyz), where=denom != 0)
 
-            # normals_rgb = (h, w, 3, 3)
-            # normal = (h, w, 3)
-            # normal output = 9 times larger
-            # correct = (h, w, 3)
-
-            return albedos_rgb, normal.reshape((height, width, 3))
+            # TODO: normal output is 9 times larger
+            return albedos_rgb, normals_xyz
 
     # Grayscale
     else:
