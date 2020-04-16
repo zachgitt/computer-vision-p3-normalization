@@ -54,10 +54,9 @@ def compute_photometric_stereo_impl(lights, images):
         # Save variables
         height, width = images[0].shape
 
+        # Calculate G from least squares
         I = np.array([image.flatten() for image in images])  # (NxP)
         L = np.array(lights)  # (Nx3)
-
-        # Calculate G from least squares
         G = np.linalg.inv(L.T @ L) @ (L.T @ I)  # (3xP)
 
         # Calculate albedo and norms
