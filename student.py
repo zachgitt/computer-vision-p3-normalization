@@ -37,6 +37,8 @@ def compute_photometric_stereo_impl(lights, images):
             albedos_rgb = np.zeros((height, width, depth))
             normals_xyz = np.zeros((height, width, 3))
 
+            normal = np.zeros((3, height*width))
+
             for color in range(depth):
 
                 # Calculate G from least squares
@@ -47,19 +49,20 @@ def compute_photometric_stereo_impl(lights, images):
                 # Calculate albedo and norms
                 albedo = np.linalg.norm(G, axis=0)  # (1xP)
                 albedo[np.abs(albedo) < 1e-7] = 0
-                normal = np.divide(G, albedo, out=np.zeros_like(G), where=albedo != 0)   # (3xP) 
+                normal += np.divide(G, albedo, out=np.zeros_like(G), where=albedo != 0)   # (3xP) 
+
 
                 # Append rgb channels
-                normals_xyz += normal.reshape((height, width, 3))
-                #normals_rgb[:,:,:,color] = normal.reshape((height, width, 3))
+                #normals_xyz += normal.reshape((height, width, 3))
                 albedos_rgb[:,:,color] = albedo.reshape((height, width))
 
             # TODO: divide by the normal
-            denom = np.linalg.norm(normals_xyz, axis=2).reshape((height, width, 1))
-            normals_xyz = np.divide(normals_xyz, denom, out=np.zeros_like(normals_xyz), where=denom != 0)
+            #denom = np.linalg.norm(normals_xyz, axis=2).reshape((height, width, 1))
+            #normals_xyz = np.divide(normals_xyz, denom, out=np.zeros_like(normals_xyz), where=denom != 0)
+            normal /= np.linalg.norm(normal, axis=0)
 
             # TODO: normal output is 9 times larger
-            return albedos_rgb, normals_xyz
+            return albedos_rgb, normal.reshape((height, width, 3))
 
     # Grayscale
     else:
