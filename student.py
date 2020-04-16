@@ -29,33 +29,63 @@ def compute_photometric_stereo_impl(lights, images):
         normals -- float32 height x width x 3 image with dimensions matching
                    the input images.
     """
-    # Save dimensions
+    # RGB
     rgb = len(images[0].shape) == 3
     if rgb:
-        height, width, depth = images[0].shape  # RGB
+            # Save variables
+            height, width, depth = images[0].shape  # RGB
+            albedos_rgb = np.zeros((height, width, depth))
+            normals_rgb = np.zeros((height, width, 3, depth))
+
+            # Save images
+            I = np.zeros((height, width, depth))
+
+            for color in range(depth):
+
+                # Calculate G from least squares
+                I = np.array([image[:,:,color].flatten() for image in images])  # (NxP)
+                L = np.array(lights)  # (Nx3)
+                G = np.linalg.inv(L.T @ L) @ (L.T @ I)  # (3xP)
+
+                # Calculate albedo and norms
+                albedo = np.linalg.norm(G, axis=0)  # (1xP)
+                albedo[np.abs(albedo) < 1e-7] = 0
+                normal = np.divide(G, albedo, out=np.zeros_like(G), where=albedo != 0)   # (3xP) 
+
+                # Append rgb channels
+                normals_rgb[:,:,:,color] = normal.reshape((height, width, 3))
+                albedos_rgb[:,:,color] = albedo.reshape((height, width))
+
+                # normals_rgb = np.stack((normals_rgb, normal.reshape((height, width, 3))), axis=3) if len(normals_rgb) else normal.reshape((height, width, 3))
+                # albedos_rgb = np.stack((albedos_rgb, albedo.reshape((height, width))), axis=2) if len(albedos_rgb) else albedo.reshape((height, width))
+
+            # normals_rgb = (h, w, 3, 3)
+            # normal = (h, w, 3)
+            # normal output = 9 times larger
+            # correct = (h, w, 3)
+
+            return albedos_rgb, normal.reshape((height, width, 3))
+
+    # Grayscale
     else:
-        height, width = images[0].shape  # Grayscale
-        depth = 1
+        # Save variables
+        height, width = images[0].shape
 
-    # Flatten pixels
-    I = np.array([image.flatten() for image in images])  # (NxP)
-    L = np.array(lights)  # (Nx3)
+        I = np.array([image.flatten() for image in images])  # (NxP)
+        L = np.array(lights)  # (Nx3)
 
-    # Calculate G from least squares
-    G = np.linalg.inv(L.T @ L) @ (L.T @ I)  # (3xP)
+        # Calculate G from least squares
+        G = np.linalg.inv(L.T @ L) @ (L.T @ I)  # (3xP)
 
-    # Calculate albedo and norms
-    albedo = np.linalg.norm(G, axis=0)  # (1xP)
-    normals = G / albedo  # (3xP)
+        # Calculate albedo and norms
+        albedo = np.linalg.norm(G, axis=0)  # (1xP)
+        normals = np.divide(G, albedo, out=np.zeros_like(G), where=albedo != 0)  # (3xP) 
 
-    # Unflatten pixels
-    albedo = albedo.reshape((height, width, depth))
-    if rgb:
-        normals = normals.reshape((height, width, depth, 3))  # TODO: removing depth gives error, but without depth dimensional error given
-    else:
+        # Reshape
         normals = normals.reshape((height, width, 3))
+        albedo = albedo.reshape((height, width))
 
-    return albedo, normals
+        return albedo, normals
 
 
 def project_impl(K, Rt, points):
