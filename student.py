@@ -132,8 +132,34 @@ def preprocess_ncc_impl(image, ncc_size):
     Output:
         normalized -- heigth x width x (channels * ncc_size**2) array
     """
-    raise NotImplementedError()
+    # Save variables
+    import pdb; pdb.set_trace()
+    height, width, depth = image.shape
 
+    # Compute patch means, per channel
+    # means = np.zeros((height - ncc_size + 1, width - ncc_size + 1, depth))
+    # for i in range(means.shape[0]):
+    #     for j in range(means.shape[1]):
+    #         for k in range(means.shape[2]):
+    #             means[i,j,k] = np.mean(image[i:i+ncc_size, j:j+ncc_size, k])
+
+    # Copy image patch and subtract its mean, per channel
+    patches = np.zeros((height - ncc_size + 1, width - ncc_size + 1, depth, ncc_size, ncc_size))
+    for i in range(patches.shape[0]):
+        for j in range(patches.shape[1]):
+            for k in range(patches.shape[2]):
+                # Subtract mean from each patch
+                patches[i,j,k,:,:] = image[i:i+ncc_size, j:j+ncc_size, k] - np.mean(image[i:i+ncc_size, j:j+ncc_size, k])
+
+            # Divide each patch by its normal
+            # patches[i,j,k,:,:] = np.divide(patches[i,j,:,:,:], np.linalg.norm(patches, axis=(0,1)),
+            #                                out=np.zeros((height, width, )))
+            #
+            # albedo = np.linalg.norm(G, axis=3)  # (HxWxD)
+            # normals = np.divide(np.mean(G, axis=2), albedo, out=np.zeros_like(albedo), where=albedo != 0)  # (HxWx3)
+
+    print('patches!')
+    return
 
 def compute_ncc_impl(image1, image2):
     """
