@@ -39,7 +39,7 @@ class TentacleDataset(object):
         self.projected_temp = 'temp/tentacle_projected-%03d.png'
         self.projected_gif = 'output/tentacle_projected.gif'
 
-        self.stereo_downscale_factor = 3
+        self.stereo_downscale_factor = 4
 
         self.mesh_downscale_factor = 0
 

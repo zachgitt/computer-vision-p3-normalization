@@ -29,14 +29,13 @@ def compute_photometric_stereo_impl(lights, images):
         normals -- float32 height x width x 3 image with dimensions matching
                    the input images.
     """
-    # RGB
-    rgb = len(images[0].shape) == 3
-    if rgb:
-            # Save variables
-            height, width, depth = images[0].shape  # RGB
-            G = np.zeros((height, width, depth, 3))
+    # Save shape
+    height, width, depth = images[0].shape
 
+    # RGB
+    if depth == 3:
             # Calculate G from least squares
+            G = np.zeros((height, width, depth, 3))
             for color in range(depth):
                 I = np.array([image[:,:,color].flatten() for image in images])  # (NxP)
                 L = np.array(lights)  # (Nx3)
@@ -45,15 +44,13 @@ def compute_photometric_stereo_impl(lights, images):
             # Calculate albedo and normals
             albedo = np.linalg.norm(G, axis=3)  # (HxWxD)
             normals = np.divide(np.mean(G, axis=2), albedo, out=np.zeros_like(albedo), where=albedo > 1e-7)  # (HxWx3)
-            normals /= np.linalg.norm(normals, axis=2)[:,:,np.newaxis]  # (HxWx3)
+            norm = np.linalg.norm(normals, axis=2)[:,:,np.newaxis]
+            normals = np.divide(normals, norm, out=np.zeros_like(normals), where=norm != 0)  # (HxWx3)
 
             return albedo, normals
 
     # Grayscale
     else:
-        # Save variables
-        height, width = images[0].shape
-
         # Calculate G from least squares
         I = np.array([image.flatten() for image in images])  # (NxP)
         L = np.array(lights)  # (Nx3)
@@ -156,7 +153,6 @@ def preprocess_ncc_impl(image, ncc_size):
     # Divide each patch by its normal
     output = np.zeros((height, width, depth * ncc_size**2))
     norm = np.linalg.norm(patches, axis=(2,3))
-    norm = np.array(norm > 1e-6)
     for i in range(patches.shape[0]):
         for j in range(patches.shape[1]):
             if norm[i][j] < 1e-6:
@@ -184,10 +180,10 @@ def compute_ncc_impl(image1, image2):
     for i in range(height):
         for j in range(width):
             # num = np.sum((image1[i][j] - np.mean(image1[i][j]))*(image2[i][j] - np.mean(image2[i][j])))
-            # sigma1 = np.sqrt(np.square(image1[i][j] - np.mean(image1[i][j])) / length)
-            # sigma2 = np.sqrt(np.square(image2[i][j] - np.mean(image2[i][j])) / length)
-            # denom = sigma1 * sigma2
-            # output[i][j] = num / denom
+            #             # sigma1 = np.sqrt(np.square(image1[i][j] - np.mean(image1[i][j])) / length)
+            #             # sigma2 = np.sqrt(np.square(image2[i][j] - np.mean(image2[i][j])) / length)
+            #             # denom = sigma1 * sigma2
+            #             # output[i][j] = num / denom
             output[i][j] = np.correlate(image1[i][j], image2[i][j])
 
     return output
