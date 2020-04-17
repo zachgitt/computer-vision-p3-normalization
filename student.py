@@ -44,7 +44,7 @@ def compute_photometric_stereo_impl(lights, images):
 
             # Calculate albedo and normals
             albedo = np.linalg.norm(G, axis=3)  # (HxWxD)
-            normals = np.divide(np.mean(G, axis=2), albedo, out=np.zeros_like(albedo), where=albedo != 0)  # (HxWx3)
+            normals = np.divide(np.mean(G, axis=2), albedo, out=np.zeros_like(albedo), where=albedo > 1e-7)  # (HxWx3)
             normals /= np.linalg.norm(normals, axis=2)[:,:,np.newaxis]  # (HxWx3)
 
             return albedo, normals
@@ -61,7 +61,7 @@ def compute_photometric_stereo_impl(lights, images):
 
         # Calculate albedo and norms
         albedo = np.linalg.norm(G, axis=0)  # (1xP)
-        normals = np.divide(G, albedo, out=np.zeros_like(G), where=albedo != 0)  # (3xP) 
+        normals = np.divide(G, albedo, out=np.zeros_like(G), where=albedo > 1e-7)  # (3xP) 
 
         # Reshape
         normals = normals.reshape((height, width, 3))
@@ -143,33 +143,28 @@ def preprocess_ncc_impl(image, ncc_size):
         normalized -- heigth x width x (channels * ncc_size**2) array
     """
     # Save variables
-    import pdb; pdb.set_trace()
     height, width, depth = image.shape
 
-    # Compute patch means, per channel
-    # means = np.zeros((height - ncc_size + 1, width - ncc_size + 1, depth))
-    # for i in range(means.shape[0]):
-    #     for j in range(means.shape[1]):
-    #         for k in range(means.shape[2]):
-    #             means[i,j,k] = np.mean(image[i:i+ncc_size, j:j+ncc_size, k])
-
     # Copy image patch and subtract its mean, per channel
-    patches = np.zeros((height - ncc_size + 1, width - ncc_size + 1, depth, ncc_size, ncc_size))
+    patches = np.zeros((height - ncc_size + 1, width - ncc_size + 1, depth, ncc_size**2))
     for i in range(patches.shape[0]):
         for j in range(patches.shape[1]):
             for k in range(patches.shape[2]):
                 # Subtract mean from each patch
-                patches[i,j,k,:,:] = image[i:i+ncc_size, j:j+ncc_size, k] - np.mean(image[i:i+ncc_size, j:j+ncc_size, k])
+                patches[i,j,k,:] = image[i:i+ncc_size, j:j+ncc_size, k].flatten() - np.mean(image[i:i+ncc_size, j:j+ncc_size, k])
 
-            # Divide each patch by its normal
-            # patches[i,j,k,:,:] = np.divide(patches[i,j,:,:,:], np.linalg.norm(patches, axis=(0,1)),
-            #                                out=np.zeros((height, width, )))
-            #
-            # albedo = np.linalg.norm(G, axis=3)  # (HxWxD)
-            # normals = np.divide(np.mean(G, axis=2), albedo, out=np.zeros_like(albedo), where=albedo != 0)  # (HxWx3)
+    # Divide each patch by its normal
+    output = np.zeros((height, width, depth * ncc_size**2))
+    norm = np.linalg.norm(patches, axis=(2,3))
+    norm = np.array(norm > 1e-6)
+    for i in range(patches.shape[0]):
+        for j in range(patches.shape[1]):
+            if norm[i][j] < 1e-6:
+                output[i + ncc_size - 1, j + ncc_size - 1,:] = np.zeros((depth * ncc_size**2))
+            else:
+                output[i + ncc_size - 1, j + ncc_size - 1, :] = (patches[i,j,:,:] / norm[i][j]).flatten()
 
-    print('patches!')
-    return
+    return output
 
 def compute_ncc_impl(image1, image2):
     """
@@ -183,4 +178,16 @@ def compute_ncc_impl(image1, image2):
         ncc -- height x width normalized cross correlation between image1 and
                image2.
     """
-    raise NotImplementedError()
+    height, width, length = image1.shape
+
+    output = np.zeros((height, width))
+    for i in range(height):
+        for j in range(width):
+            # num = np.sum((image1[i][j] - np.mean(image1[i][j]))*(image2[i][j] - np.mean(image2[i][j])))
+            # sigma1 = np.sqrt(np.square(image1[i][j] - np.mean(image1[i][j])) / length)
+            # sigma2 = np.sqrt(np.square(image2[i][j] - np.mean(image2[i][j])) / length)
+            # denom = sigma1 * sigma2
+            # output[i][j] = num / denom
+            output[i][j] = np.correlate(image1[i][j], image2[i][j])
+
+    return output
