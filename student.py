@@ -80,7 +80,17 @@ def project_impl(K, Rt, points):
     Output:
         projections -- height x width x 2 array of 2D projections
     """
-    raise NotImplementedError()
+    pi = K.dot(Rt)
+    height, width = points.shape[:2]
+    projections = np.zeros((height, width, 2))
+    ones = np.ones((points.shape[0], points.shape[1], 1), dtype=np.single)
+    points_expanded = np.append(points, ones,2)
+    for index_i, row in enumerate(points_expanded):
+        for index_j, column in enumerate(row):
+            projected_point = pi.dot(column) #shape(3,4).dot(shape(4,))
+            projections[index_i, index_j] = np.array(projected_point[0]/projected_point[2], projected_point[1]/projected_point[2])
+    return projections
+
 
 
 def preprocess_ncc_impl(image, ncc_size):
