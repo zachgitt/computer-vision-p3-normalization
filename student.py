@@ -52,7 +52,6 @@ def compute_photometric_stereo_impl(lights, images):
 
     # Grayscale
     else:
-        print("In GRAY")
         # Calculate G from least squares
         I = np.array([image.flatten() for image in images])  # (NxP)
         L = np.array(lights)  # (Nx3)
