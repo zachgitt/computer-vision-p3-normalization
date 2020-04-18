@@ -142,22 +142,32 @@ def preprocess_ncc_impl(image, ncc_size):
     """
     # Save variables
     height, width, depth = image.shape
+    output = np.zeros((height, width, depth * ncc_size**2))
 
     # Copy image patch and subtract its mean, per channel
     patches = np.zeros((height - ncc_size + 1, width - ncc_size + 1, depth, ncc_size**2))
     for i in range(patches.shape[0]):
         for j in range(patches.shape[1]):
-            patches[i, j, :, :] = (image[i:i+ncc_size, j:j+ncc_size, :].reshape(-1, depth) - np.mean(image[i:i+ncc_size, j:j+ncc_size], axis=(0,1))).T
 
-    # Divide each patch by its normal
-    output = np.zeros((height, width, depth * ncc_size**2))
-    norm = np.linalg.norm(patches, axis=(2,3))
-    for i in range(patches.shape[0]):
-        for j in range(patches.shape[1]):
-            if norm[i][j] < 1e-6:
+            patch = (image[i:i+ncc_size, j:j+ncc_size, :].reshape(-1, depth) - np.mean(image[i:i+ncc_size, j:j+ncc_size], axis=(0,1))).T
+            # patches[i, j, :, :] = (image[i:i+ncc_size, j:j+ncc_size, :].reshape(-1, depth) - np.mean(image[i:i+ncc_size, j:j+ncc_size], axis=(0,1))).T
+            #calculate norm for patches[i, j, :, :]
+            norm = np.linalg.norm(patch)
+            if norm < 1e-6:
                 output[i + (ncc_size - 1)//2, j + (ncc_size - 1)//2,:] = np.zeros((depth * ncc_size**2))
             else:
-                output[i + (ncc_size - 1)//2, j + (ncc_size - 1)//2, :] = (patches[i,j,:,:] / norm[i][j]).flatten()
+                output[i + (ncc_size - 1)//2, j + (ncc_size - 1)//2, :] = (patch / norm).flatten()
+
+
+
+    # Divide each patch by its normal
+    # norm = np.linalg.norm(patches, axis=(2,3)) #=> [height, width]
+    # for i in range(patches.shape[0]):
+    #     for j in range(patches.shape[1]):
+    #         if norm[i][j] < 1e-6:
+    #             output[i + (ncc_size - 1)//2, j + (ncc_size - 1)//2,:] = np.zeros((depth * ncc_size**2))
+    #         else:
+    #             output[i + (ncc_size - 1)//2, j + (ncc_size - 1)//2, :] = (patches[i,j,:,:] / norm[i][j]).flatten()
     return output
 
 def compute_ncc_impl(image1, image2):
