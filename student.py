@@ -35,7 +35,6 @@ def compute_photometric_stereo_impl(lights, images):
 
     # RGB
     if depth == 3:
-        print("In RGB")
         # Calculate G from least squares
         G = np.zeros((height, width, depth, 3))
         for color in range(depth):
@@ -80,19 +79,17 @@ def project_impl(K, Rt, points):
     Output:
         projections -- height x width x 2 array of 2D projections
     """
-
     height, width = points.shape[:2]
-    output = np.zeros((height, width, 2))
     pi = K.dot(Rt)
-    for index_i, point_i in enumerate(points):
-        for index_j, point_j in enumerate(point_i):
-            point = np.array(points[index_i, index_j])
-            point_expanded = np.array([point[0], point[1], point[2], 1.0])
-            homogenized = pi.dot(point_expanded)
-            output[index_i, index_j] = np.array([homogenized[0] / homogenized[2], homogenized[1] / homogenized[2]])
-    return output
-
-
+    ones = np.ones((height, width, 1))
+    points_expanded = np.concatenate((points, ones), axis=2)
+    inner = np.inner(points_expanded, pi)
+    divisor = np.ones((height, width, 3))
+    divisor[:, :, 0] = inner[:, :, -1]
+    divisor[:, :, 1] = inner[:, :, -1]
+    divisor[:, :, 2] = inner[:, :, -1]
+    inner = inner/divisor
+    return inner[:, :, 0:2]
 
 
 def preprocess_ncc_impl(image, ncc_size):
@@ -151,14 +148,11 @@ def preprocess_ncc_impl(image, ncc_size):
     patches = np.zeros((height - ncc_size + 1, width - ncc_size + 1, depth, ncc_size**2))
     for i in range(patches.shape[0]):
         for j in range(patches.shape[1]):
-            for k in range(patches.shape[2]):
-                # Subtract mean from each patch
-                patches[i,j,k,:] = image[i:i+ncc_size, j:j+ncc_size, k].flatten() - np.mean(image[i:i+ncc_size, j:j+ncc_size, k])
+            patches[i, j, :, :] = (image[i:i+ncc_size, j:j+ncc_size, :].reshape(-1, depth) - np.mean(image[i:i+ncc_size, j:j+ncc_size], axis=(0,1))).T
 
     # Divide each patch by its normal
     output = np.zeros((height, width, depth * ncc_size**2))
     norm = np.linalg.norm(patches, axis=(2,3))
-
     for i in range(patches.shape[0]):
         for j in range(patches.shape[1]):
             if norm[i][j] < 1e-6:
