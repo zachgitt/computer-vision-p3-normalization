@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 from scipy.sparse import csr_matrix
 import util_sweep
+import math
 
 
 def compute_photometric_stereo_impl(lights, images):
@@ -34,23 +35,25 @@ def compute_photometric_stereo_impl(lights, images):
 
     # RGB
     if depth == 3:
-            # Calculate G from least squares
-            G = np.zeros((height, width, depth, 3))
-            for color in range(depth):
-                I = np.array([image[:,:,color].flatten() for image in images])  # (NxP)
-                L = np.array(lights)  # (Nx3)
-                G[:,:,color,:] = (np.linalg.inv(L.T @ L) @ (L.T @ I)).T.reshape((height, width, 3))
+        print("In RGB")
+        # Calculate G from least squares
+        G = np.zeros((height, width, depth, 3))
+        for color in range(depth):
+            I = np.array([image[:,:,color].flatten() for image in images])  # (NxP)
+            L = np.array(lights)  # (Nx3)
+            G[:,:,color,:] = (np.linalg.inv(L.T @ L) @ (L.T @ I)).T.reshape((height, width, 3))
 
-            # Calculate albedo and normals
-            albedo = np.linalg.norm(G, axis=3)  # (HxWxD)
-            normals = np.divide(np.mean(G, axis=2), albedo, out=np.zeros_like(albedo), where=albedo > 1e-7)  # (HxWx3)
-            norm = np.linalg.norm(normals, axis=2)[:,:,np.newaxis]
-            normals = np.divide(normals, norm, out=np.zeros_like(normals), where=norm != 0)  # (HxWx3)
+        # Calculate albedo and normals
+        albedo = np.linalg.norm(G, axis=3)  # (HxWxD)
+        normals = np.divide(np.mean(G, axis=2), albedo, out=np.zeros_like(albedo), where=albedo > 1e-7)  # (HxWx3)
+        norm = np.linalg.norm(normals, axis=2)[:,:,np.newaxis]
+        normals = np.divide(normals, norm, out=np.zeros_like(normals), where=norm != 0)  # (HxWx3)
 
-            return albedo, normals
+        return albedo, normals
 
     # Grayscale
     else:
+        print("In GRAY")
         # Calculate G from least squares
         I = np.array([image.flatten() for image in images])  # (NxP)
         L = np.array(lights)  # (Nx3)
@@ -62,7 +65,7 @@ def compute_photometric_stereo_impl(lights, images):
 
         # Reshape
         normals = normals.reshape((height, width, 3))
-        albedo = albedo.reshape((height, width))
+        albedo = albedo.reshape((height, width, depth))
 
         return albedo, normals
 
@@ -77,16 +80,18 @@ def project_impl(K, Rt, points):
     Output:
         projections -- height x width x 2 array of 2D projections
     """
-    pi = K.dot(Rt)
+
     height, width = points.shape[:2]
-    projections = np.zeros((height, width, 2))
-    ones = np.ones((points.shape[0], points.shape[1], 1), dtype=np.single)
-    points_expanded = np.append(points, ones,2)
-    for index_i, row in enumerate(points_expanded):
-        for index_j, column in enumerate(row):
-            projected_point = pi.dot(column) #shape(3,4).dot(shape(4,))
-            projections[index_i, index_j] = np.array(projected_point[0]/projected_point[2], projected_point[1]/projected_point[2])
-    return projections
+    output = np.zeros((height, width, 2))
+    pi = K.dot(Rt)
+    for index_i, point_i in enumerate(points):
+        for index_j, point_j in enumerate(point_i):
+            point = np.array(points[index_i, index_j])
+            point_expanded = np.array([point[0], point[1], point[2], 1.0])
+            homogenized = pi.dot(point_expanded)
+            output[index_i, index_j] = np.array([homogenized[0] / homogenized[2], homogenized[1] / homogenized[2]])
+    return output
+
 
 
 
@@ -153,13 +158,13 @@ def preprocess_ncc_impl(image, ncc_size):
     # Divide each patch by its normal
     output = np.zeros((height, width, depth * ncc_size**2))
     norm = np.linalg.norm(patches, axis=(2,3))
+
     for i in range(patches.shape[0]):
         for j in range(patches.shape[1]):
             if norm[i][j] < 1e-6:
-                output[i + ncc_size - 1, j + ncc_size - 1,:] = np.zeros((depth * ncc_size**2))
+                output[i + (ncc_size - 1)//2, j + (ncc_size - 1)//2,:] = np.zeros((depth * ncc_size**2))
             else:
-                output[i + ncc_size - 1, j + ncc_size - 1, :] = (patches[i,j,:,:] / norm[i][j]).flatten()
-
+                output[i + (ncc_size - 1)//2, j + (ncc_size - 1)//2, :] = (patches[i,j,:,:] / norm[i][j]).flatten()
     return output
 
 def compute_ncc_impl(image1, image2):
@@ -179,11 +184,5 @@ def compute_ncc_impl(image1, image2):
     output = np.zeros((height, width))
     for i in range(height):
         for j in range(width):
-            # num = np.sum((image1[i][j] - np.mean(image1[i][j]))*(image2[i][j] - np.mean(image2[i][j])))
-            #             # sigma1 = np.sqrt(np.square(image1[i][j] - np.mean(image1[i][j])) / length)
-            #             # sigma2 = np.sqrt(np.square(image2[i][j] - np.mean(image2[i][j])) / length)
-            #             # denom = sigma1 * sigma2
-            #             # output[i][j] = num / denom
             output[i][j] = np.correlate(image1[i][j], image2[i][j])
-
     return output
